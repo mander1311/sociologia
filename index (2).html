@@ -273,25 +273,38 @@
       .ineq-head p, .workday-head p, .headrow p, .theory-head p { text-align:left; margin-top:14px; }
       .reality-split { grid-template-columns:1fr; }
       .reality + .reality { border-left:0; border-top:1px solid var(--line); }
-      .clockline { grid-template-columns:repeat(3,1fr); }
-      .work-moment:nth-child(3) { border-right:0; }
-      .work-moment:nth-child(n+4) { border-top:1px solid var(--line); }
+      .clockline { grid-template-columns:repeat(2,1fr); }
+      .work-moment:nth-child(2n) { border-right:0; }
+      .work-moment:nth-child(n+3) { border-top:1px solid var(--line); }
       .work-moment > div { min-height:132px; justify-content:center; }
-      .job-line { grid-template-columns:132px 1fr; align-items:start; }
-      .job-stage { min-height:auto; padding-top:6px; }
+      .task-change h2 { font-size:clamp(30px,10.5vw,50px); line-height:.96; max-width:9ch; }
+      .job-line { grid-template-columns:1fr; gap:10px; align-items:start; padding:18px 0; }
+      .job-name { font-size:clamp(22px,9vw,38px); }
+      .job-stage { min-height:auto; padding-top:0; padding-left:0; }
+      .job-stage strong { margin-bottom:4px; }
+      .job-line .job-stage + .job-stage { border-top:1px solid rgba(255,255,255,.06); padding-top:10px; }
       .arrow-col { display:none; }
+      .task-thesis { font-size:clamp(24px,8.5vw,42px); }
       .thinkers { grid-template-columns:1fr; }
       .thinker { min-height:auto; border-right:0; border-bottom:1px solid var(--line); gap:28px; }
       .thinker:last-child { border-bottom:0; }
       .debate-line { grid-template-columns:1fr; }
-      .debate-q { border-right:0; border-bottom:1px solid var(--line); padding-left:0!important; }
+      .debate-q { border-right:0; border-bottom:1px solid var(--line); padding-left:0!important; min-height:auto; padding-right:0; }
+      .debate-q p { max-width:none; }
       #notesOverlay { width:calc(100vw - 40px); right:20px; }
     }
 
     #progressTrack { position: fixed; left: 0; right: 0; top: 0; height: 3px; background: rgba(255,255,255,.08); z-index: 100; }
     #progress { display: block; width: 8.3333%; height: 100%; background: var(--accent); transition: width .42s cubic-bezier(.2,.8,.2,1); }
     #sectionCounter { position: fixed; right: 22px; bottom: 18px; z-index: 100; font-size: 11px; color: #8f8680; letter-spacing: .14em; font-variant-numeric: tabular-nums; }
+    .mobile-nav { display:none; }
     @media (max-width: 1000px) { :root { --safe-x: 34px; --safe-y: 34px; } }
+    @media (max-width: 900px) {
+      .mobile-nav { display:flex; gap:10px; position:fixed; left:50%; transform:translateX(-50%); bottom:calc(18px + env(safe-area-inset-bottom,0px)); z-index:115; }
+      .mobile-nav button { width:46px; height:46px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(14,14,15,.88); color:var(--text); font-size:21px; line-height:1; display:grid; place-items:center; backdrop-filter:blur(8px); box-shadow:0 10px 28px rgba(0,0,0,.24); }
+      .mobile-nav button:active { transform:scale(.97); }
+      #sectionCounter { right:14px; bottom:76px; }
+    }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
       .reveal, .reveal-up, .reveal-line, .slide { opacity: 1; transform: none; }
@@ -520,6 +533,10 @@
     </section>
   </div>
   <div id="sectionCounter" aria-live="polite">01/12</div>
+  <div class="mobile-nav" aria-label="Navegação no celular">
+    <button id="mobilePrev" type="button" aria-label="Tela anterior">‹</button>
+    <button id="mobileNext" type="button" aria-label="Próxima tela">›</button>
+  </div>
   <aside id="notesOverlay" aria-live="polite" aria-hidden="true"><div id="notesPresenter"></div><div id="notesText"></div></aside>
   <script>
     const slides = Array.from(document.querySelectorAll('.slide'));
@@ -528,8 +545,12 @@
     const notesOverlay = document.getElementById('notesOverlay');
     const notesPresenter = document.getElementById('notesPresenter');
     const notesText = document.getElementById('notesText');
+    const mobilePrev = document.getElementById('mobilePrev');
+    const mobileNext = document.getElementById('mobileNext');
     let currentSlide = 0;
     let wheelLocked = false;
+    let touchStartX = 0;
+    let touchStartY = 0;
 
     function goToSlide(index) {
       currentSlide = Math.max(0, Math.min(slides.length - 1, index));
@@ -613,6 +634,26 @@
       if (event.deltaY > 0) nextSlide(); else prevSlide();
       window.setTimeout(() => { wheelLocked = false; }, 650);
     }, { passive: true });
+
+    document.addEventListener('touchstart', (event) => {
+      const touch = event.changedTouches && event.changedTouches[0];
+      if (!touch) return;
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    }, { passive: true });
+
+    document.addEventListener('touchend', (event) => {
+      const touch = event.changedTouches && event.changedTouches[0];
+      if (!touch) return;
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      if (Math.abs(dx) < 50) return;
+      if (Math.abs(dx) <= Math.abs(dy) * 1.2) return;
+      if (dx < 0) nextSlide(); else prevSlide();
+    }, { passive: true });
+
+    if (mobilePrev) mobilePrev.addEventListener('click', prevSlide);
+    if (mobileNext) mobileNext.addEventListener('click', nextSlide);
 
     goToSlide(0);
   </script>
