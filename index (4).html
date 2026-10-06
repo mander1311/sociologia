@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Trabalho remoto e IA — Grupo 6</title>
+  <style>
+    :root {
+      --bg: #0b0b0c;
+      --surface: #151416;
+      --surface-2: #1d1a1a;
+      --text: #f4efe8;
+      --muted: #a9a098;
+      --accent: #d66d46;
+      --accent-soft: rgba(214, 109, 70, .18);
+      --line: rgba(244, 239, 232, .14);
+      --safe-x: clamp(28px, 5.2vw, 86px);
+      --safe-y: clamp(32px, 5.5vh, 64px);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: Inter, "Segoe UI", Arial, sans-serif; overscroll-behavior: none; touch-action: none; }
+    body::before {
+      content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 80; opacity: .23;
+      background:
+        radial-gradient(circle at 17% 24%, rgba(214,109,70,.08), transparent 27%),
+        radial-gradient(circle at 83% 73%, rgba(255,255,255,.035), transparent 24%),
+        repeating-linear-gradient(115deg, rgba(255,255,255,.012) 0 1px, transparent 1px 4px);
+      mix-blend-mode: screen;
+    }
+    #stage { position: fixed; inset: 0; overflow: hidden; }
+    .slide {
+      position: absolute; inset: 0; display: grid; align-content: center;
+      padding: var(--safe-y) var(--safe-x) calc(var(--safe-y) + 18px);
+      opacity: 0; visibility: hidden; transform: translate3d(0,5vh,0) scale(.992);
+      transition: opacity .48s cubic-bezier(.2,.75,.2,1), transform .55s cubic-bezier(.2,.75,.2,1), visibility 0s linear .55s;
+      overflow: hidden;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.012), transparent 45%),
+        var(--bg);
+    }
+    .slide.active { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; z-index: 2; }
+    .slide.exit-up { opacity: 0; visibility: hidden; transform: translate3d(0,-4vh,0) scale(.992); }
+    .slide.exit-down { opacity: 0; visibility: hidden; transform: translate3d(0,4vh,0) scale(.992); }
+    .slide::after { content: attr(data-kicker); position: absolute; left: var(--safe-x); top: 24px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .18em; }
+    .eyebrow { color: var(--accent); font-size: clamp(11px, 1vw, 14px); letter-spacing: .18em; text-transform: uppercase; font-weight: 700; }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: -.035em; }
+    h1 { font-size: clamp(48px, 7.2vw, 112px); line-height: .94; max-width: 1100px; }
+    h2 { font-size: clamp(38px, 5.25vw, 82px); line-height: .98; }
+    p { font-size: clamp(17px, 1.55vw, 25px); line-height: 1.45; color: var(--muted); }
+    .muted { color: var(--muted); }
+    .accent { color: var(--accent); }
+    .source { position: absolute; left: var(--safe-x); right: var(--safe-x); bottom: 16px; font-size: clamp(9px,.75vw,11px); color: #746d67; letter-spacing: .02em; }
+    .reveal, .reveal-up, .reveal-line { opacity: 0; transition: opacity .55s ease var(--delay,0s), transform .65s cubic-bezier(.2,.8,.2,1) var(--delay,0s); }
+    .reveal-up { transform: translateY(26px); }
+    .reveal-line { transform: scaleX(.1); transform-origin: left center; }
+    .slide.active .reveal, .slide.active .reveal-up, .slide.active .reveal-line, .is-active { opacity: 1; transform: none; }
+
+    /* 01 — opener */
+    .s1-grid { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(320px,.75fr); align-items: end; gap: 5vw; min-height: 70vh; }
+    .s1-copy { align-self: center; }
+    .s1-copy h1 em { font-style: normal; color: var(--accent); }
+    .subtitle { margin-top: 28px; max-width: 720px; font-size: clamp(16px,1.45vw,23px); }
+    .group-line { margin-top: 34px; color: #77706b; font-size: 11px; text-transform: uppercase; letter-spacing: .13em; }
+    .signal-map { position: relative; height: min(62vh,560px); border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); opacity: .88; }
+    .signal-map::before, .signal-map::after { content:""; position:absolute; border:1px solid var(--line); border-radius:50%; }
+    .signal-map::before { width: 58%; aspect-ratio:1; right: 8%; top: 14%; }
+    .signal-map::after { width: 34%; aspect-ratio:1; left: 8%; bottom: 11%; }
+    .node { position:absolute; width:12px; height:12px; border-radius:50%; background:var(--text); box-shadow:0 0 0 8px rgba(244,239,232,.05); }
+    .node.hot { background:var(--accent); box-shadow:0 0 0 10px var(--accent-soft); }
+    .node::after { content:""; position:absolute; left:50%; top:50%; width:var(--w,140px); height:1px; background:linear-gradient(90deg,var(--line),transparent); transform:rotate(var(--r,20deg)); transform-origin:left center; }
+    .node:nth-child(1){left:12%;top:18%;--w:210px;--r:18deg}.node:nth-child(2){right:22%;top:31%;--w:145px;--r:148deg}.node:nth-child(3){left:34%;bottom:21%;--w:170px;--r:-28deg}.node:nth-child(4){right:8%;bottom:11%;--w:120px;--r:-155deg}
+    .signal-label { position:absolute; right:0; top:0; writing-mode:vertical-rl; transform:rotate(180deg); font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:#6d6661; }
+
+    /* 02 — morning */
+    .morning-layout { display:grid; grid-template-columns:.78fr 1.22fr; gap:clamp(30px,5vw,90px); align-items:center; }
+    .time-hero { font-family:Georgia,"Times New Roman",serif; font-size:clamp(76px,11vw,170px); line-height:.8; color:var(--text); letter-spacing:-.07em; }
+    .morning-copy h2 { margin-top:14px; max-width:620px; }
+    .morning-copy .question { margin-top:24px; max-width:540px; color:var(--text); }
+    .day-sequence { position:relative; display:grid; gap:12px; padding-left:30px; }
+    .day-sequence::before { content:""; position:absolute; left:8px; top:12px; bottom:12px; width:1px; background:linear-gradient(var(--accent),var(--line)); }
+    .day-event { position:relative; display:grid; grid-template-columns:78px 1fr; gap:16px; align-items:center; min-height:74px; padding:14px 18px; border-top:1px solid var(--line); background:linear-gradient(90deg,rgba(255,255,255,.025),transparent); }
+    .day-event::before { content:""; position:absolute; left:-27px; width:9px; height:9px; border-radius:50%; background:var(--accent); }
+    .day-event time { color:var(--accent); font-weight:700; font-variant-numeric:tabular-nums; }
+    .day-event strong { font-size:clamp(17px,1.4vw,22px); font-weight:600; }
+    .day-event small { display:block; margin-top:4px; color:var(--muted); font-size:13px; }
+    .day-closing { margin-top:20px; font-size:clamp(18px,1.45vw,23px); color:var(--text); }
+
+    /* 03 — statistic */
+    .stat-stage { display:grid; grid-template-columns:1.15fr .85fr; gap:7vw; align-items:center; min-height:70vh; }
+    .mega { display:block; font-family:Georgia,"Times New Roman",serif; font-size:clamp(88px,13vw,210px); line-height:.72; letter-spacing:-.085em; color:var(--text); white-space:nowrap; }
+    .stat-label { margin-top:30px; max-width:660px; font-size:clamp(20px,2vw,31px); color:var(--text); }
+    .stat-note { margin-top:16px; max-width:620px; }
+    .orbit-stat { position:relative; justify-self:end; width:min(34vw,480px); aspect-ratio:1; display:grid; place-items:center; border:1px solid var(--line); border-radius:50%; background:radial-gradient(circle,var(--accent-soft) 0 22%,transparent 23%); }
+    .orbit-stat::before { content:""; position:absolute; inset:12%; border-radius:50%; border:1px dashed rgba(214,109,70,.45); }
+    .orbit-stat::after { content:""; position:absolute; inset:31%; border-radius:50%; background:var(--accent); box-shadow:0 0 70px rgba(214,109,70,.2); }
+    .orbit-copy { position:relative; z-index:2; text-align:center; font-weight:700; font-size:clamp(22px,2.5vw,38px); color:#0b0b0c; }
+    .orbit-copy small { display:block; font-size:11px; margin-top:3px; letter-spacing:.14em; text-transform:uppercase; }
+
+    /* 04 — inequality */
+    .ineq-head { display:flex; justify-content:space-between; align-items:end; gap:30px; margin-bottom:clamp(22px,4vh,44px); }
+    .ineq-head p { max-width:520px; text-align:right; }
+    .reality-split { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--line); min-height:min(53vh,520px); }
+    .reality { padding:clamp(24px,3.5vw,54px); position:relative; display:grid; align-content:space-between; overflow:hidden; }
+    .reality + .reality { border-left:1px solid var(--line); }
+    .reality.good { background:linear-gradient(145deg,rgba(214,109,70,.13),rgba(255,255,255,.018)); }
+    .reality.limited { background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(0,0,0,.25)); }
+    .reality-tag { font-size:10px; letter-spacing:.17em; text-transform:uppercase; color:var(--muted); }
+    .reality h3 { margin-top:12px; font-family:Georgia,"Times New Roman",serif; font-size:clamp(27px,3vw,48px); font-weight:500; }
+    .conditions { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:28px; }
+    .condition { border-top:1px solid var(--line); padding-top:12px; font-size:13px; color:var(--muted); }
+    .education-stat { margin-top:28px; display:flex; align-items:end; gap:15px; }
+    .education-stat b { font-family:Georgia,"Times New Roman",serif; font-size:clamp(44px,5vw,76px); font-weight:500; line-height:.8; color:var(--text); }
+    .education-stat span { color:var(--muted); font-size:12px; max-width:180px; line-height:1.35; }
+    .takeaway-band { position:absolute; left:0; right:0; bottom:0; transform:translateY(100%); }
+
+
+    /* 05 — how AI works */
+    .ai-explain { display:grid; grid-template-columns:.85fr 1.15fr; gap:clamp(32px,6vw,100px); align-items:center; }
+    .ai-explain h2 { margin-top:12px; max-width:620px; }
+    .ai-explain .lead { margin-top:24px; max-width:560px; }
+    .prompt-window { border:1px solid var(--line); background:linear-gradient(145deg,#171517,#0e0e0f); min-height:420px; padding:24px; position:relative; box-shadow:0 28px 80px rgba(0,0,0,.28); }
+    .window-dots { display:flex; gap:7px; margin-bottom:26px; }
+    .window-dots i { width:8px; height:8px; border-radius:50%; background:#504944; }
+    .prompt-label { color:#7c736c; font-size:10px; letter-spacing:.16em; text-transform:uppercase; }
+    .prompt-text { margin-top:12px; font-family:Georgia,"Times New Roman",serif; font-size:clamp(24px,2.4vw,38px); line-height:1.15; color:var(--text); max-width:650px; }
+    .flow { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:46px; }
+    .flow-step { position:relative; border-top:1px solid var(--line); padding-top:12px; color:var(--muted); font-size:12px; }
+    .flow-step:not(:last-child)::after { content:"→"; position:absolute; right:-7px; top:8px; color:var(--accent); }
+    .flow-step strong { display:block; color:var(--text); margin-bottom:5px; font-size:14px; }
+    .human-check { margin-top:30px; padding:16px 18px; border-left:3px solid var(--accent); background:var(--accent-soft); color:var(--text); font-size:14px; }
+
+    /* 06 — chart */
+    .usage-layout { display:grid; grid-template-columns:.72fr 1.28fr; gap:clamp(40px,6vw,95px); align-items:end; }
+    .usage-copy h2 { margin-top:10px; }
+    .usage-copy .thesis { margin-top:26px; color:var(--text); font-size:clamp(21px,1.9vw,29px); max-width:520px; }
+    .bar-chart { display:grid; gap:16px; padding:8px 0 6px; }
+    .bar-row { display:grid; grid-template-columns:190px 1fr 52px; gap:14px; align-items:center; }
+    .bar-label { font-size:14px; color:var(--text); }
+    .bar-track { height:22px; background:rgba(255,255,255,.055); overflow:hidden; position:relative; }
+    .bar-fill { height:100%; width:0; background:linear-gradient(90deg,var(--accent),#b94f31); transition:width 1s cubic-bezier(.2,.8,.2,1) var(--delay,0s); }
+    .slide.active .bar-fill { width:var(--value); }
+    .bar-value { font-family:Georgia,"Times New Roman",serif; font-size:22px; text-align:right; }
+    .chart-note { margin-top:22px; font-size:13px; color:#827a74; max-width:760px; }
+
+    /* 07 — workday */
+    .workday { display:grid; grid-template-rows:auto 1fr; gap:clamp(28px,5vh,52px); }
+    .workday-head { display:flex; justify-content:space-between; align-items:end; gap:30px; }
+    .workday-head p { max-width:520px; text-align:right; }
+    .clockline { position:relative; display:grid; grid-template-columns:repeat(6,1fr); gap:0; align-items:stretch; min-height:46vh; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+    .clockline::before { content:""; position:absolute; left:0; right:0; top:70px; height:1px; background:linear-gradient(90deg,var(--accent),rgba(214,109,70,.1)); }
+    .work-moment { position:relative; padding:22px 18px 20px; border-right:1px solid var(--line); display:grid; grid-template-rows:auto 1fr; align-items:stretch; }
+    .work-moment:last-child { border-right:0; }
+    .work-moment time { font-family:Georgia,"Times New Roman",serif; font-size:clamp(34px,3.6vw,58px); color:var(--text); }
+    .work-moment::before { content:""; position:absolute; top:64px; left:18px; width:10px; height:10px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 7px var(--accent-soft); }
+    .work-moment > div { display:flex; flex-direction:column; justify-content:center; align-items:flex-start; min-height:190px; padding-top:28px; padding-right:10px; }
+    .work-task { margin-top:0; max-width:16ch; font-size:clamp(16px,1.35vw,21px); line-height:1.25; color:var(--text); }
+    .role-pill { align-self:flex-start; margin-top:14px; border:1px solid var(--line); padding:6px 9px; color:var(--muted); text-transform:uppercase; letter-spacing:.11em; font-size:9px; }
+    .role-pill.ai { border-color:rgba(214,109,70,.45); color:#dca38d; }
+
+    /* 08 — task transformation */
+    .task-change { display:grid; gap:28px; }
+    .task-change .headrow { display:flex; justify-content:space-between; align-items:end; gap:32px; }
+    .headrow p { max-width:520px; text-align:right; }
+    .job-lines { border-top:1px solid var(--line); }
+    .job-line { display:grid; grid-template-columns:210px minmax(180px,1fr) 44px minmax(180px,1fr) 44px minmax(220px,1.15fr); gap:20px; align-items:stretch; padding:22px 0; border-bottom:1px solid var(--line); }
+    .job-name { font-family:Georgia,"Times New Roman",serif; font-size:clamp(24px,2.4vw,37px); align-self:center; display:flex; align-items:center; padding-right:10px; }
+    .job-stage { color:var(--muted); font-size:13px; line-height:1.5; display:flex; flex-direction:column; justify-content:center; min-height:88px; padding:14px 18px 14px 20px; border-left:1px solid rgba(244,239,232,.10); background:rgba(255,255,255,.02); }
+    .job-stage strong { display:block; color:var(--text); font-size:13px; margin-bottom:10px; text-transform:uppercase; letter-spacing:.12em; }
+    .arrow-col { text-align:center; color:var(--accent); font-size:24px; display:flex; align-items:center; justify-content:center; }
+    .task-thesis { font-family:Georgia,"Times New Roman",serif; font-size:clamp(26px,2.6vw,42px); color:var(--text); max-width:1080px; }
+
+
+    /* 09 — algorithmic management */
+    .algo-layout { display:grid; grid-template-columns:.8fr 1.2fr; gap:clamp(34px,5vw,84px); align-items:center; }
+    .algo-copy h2 { margin-top:10px; }
+    .algo-copy p { margin-top:24px; max-width:540px; }
+    .algo-question { margin-top:32px; color:var(--text); font-family:Georgia,"Times New Roman",serif; font-size:clamp(23px,2vw,32px); line-height:1.25; }
+    .dashboard { min-height:500px; border:1px solid var(--line); background:linear-gradient(160deg,#171516,#0d0d0e); padding:22px; display:grid; grid-template-columns:1fr 1fr; gap:14px; position:relative; overflow:hidden; }
+    .dashboard::before { content:"painel de gestão · simulação"; position:absolute; right:18px; top:14px; color:#615a55; font-size:9px; letter-spacing:.14em; text-transform:uppercase; }
+    .metric { border:1px solid rgba(244,239,232,.1); padding:18px; min-height:105px; display:grid; align-content:space-between; background:rgba(255,255,255,.016); }
+    .metric span { color:var(--muted); font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
+    .metric strong { font-family:Georgia,"Times New Roman",serif; font-size:clamp(28px,3vw,45px); font-weight:500; }
+    .score-panel { grid-column:1/-1; border:1px solid rgba(214,109,70,.35); background:var(--accent-soft); padding:20px; display:grid; grid-template-columns:1fr auto; align-items:center; gap:24px; }
+    .score-panel small { display:block; color:#c79c8a; text-transform:uppercase; letter-spacing:.13em; }
+    .score-panel b { font-family:Georgia,"Times New Roman",serif; font-size:clamp(48px,5vw,78px); font-weight:500; color:var(--text); }
+    .score-track { width:min(260px,23vw); height:8px; background:rgba(255,255,255,.08); }
+    .score-fill { width:84%; height:100%; background:var(--accent); transform-origin:left; transform:scaleX(0); transition:transform 1s cubic-bezier(.2,.8,.2,1) .25s; }
+    .slide.active .score-fill { transform:scaleX(1); }
+
+    /* 10 — contradictions */
+    .contradiction-layout { display:grid; grid-template-columns:.68fr 1.32fr; gap:clamp(36px,6vw,100px); align-items:center; }
+    .contradiction-layout h2 { margin-top:10px; }
+    .contradiction-layout .intro { margin-top:24px; max-width:500px; }
+    .tensions { border-top:1px solid var(--line); }
+    .tension { display:grid; grid-template-columns:1fr 64px 1fr; align-items:center; min-height:112px; border-bottom:1px solid var(--line); }
+    .tension-side { font-family:Georgia,"Times New Roman",serif; font-size:clamp(22px,2.4vw,38px); line-height:1.05; }
+    .tension-side.right { text-align:right; color:#b6ada6; }
+    .tension-vs { text-align:center; color:var(--accent); font-size:13px; letter-spacing:.12em; }
+    .tension small { display:block; margin-top:8px; color:var(--muted); font-family:Inter,"Segoe UI",Arial,sans-serif; font-size:11px; letter-spacing:.03em; }
+
+    /* 11 — sociological lenses */
+    .theory-wrap { display:grid; gap:clamp(28px,4vh,44px); }
+    .theory-head { display:flex; justify-content:space-between; align-items:end; gap:30px; }
+    .theory-head p { max-width:520px; text-align:right; }
+    .thinkers { display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+    .thinker { min-height:min(52vh,500px); padding:clamp(24px,3vw,48px); border-right:1px solid var(--line); position:relative; display:flex; flex-direction:column; justify-content:space-between; }
+    .thinker:last-child { border-right:0; }
+    .thinker-num { color:#5c5550; font-family:Georgia,"Times New Roman",serif; font-size:clamp(54px,6vw,90px); line-height:.8; }
+    .thinker h3 { font-family:Georgia,"Times New Roman",serif; font-size:clamp(30px,3vw,48px); font-weight:500; margin:12px 0 20px; }
+    .thinker-question { font-size:clamp(18px,1.55vw,24px); color:var(--text); line-height:1.35; }
+    .thinker-key { border-top:1px solid var(--line); padding-top:14px; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
+
+    /* 12 — closing */
+    .closing { display:grid; grid-template-rows:1fr auto auto; gap:18px; min-height:76vh; align-content:stretch; }
+    .closing-main { max-width:1280px; }
+    .closing-main h2 { font-size:clamp(46px,6.1vw,102px); line-height:.95; max-width:1240px; }
+    .closing-main h2 em { font-style:normal; color:var(--accent); }
+    .debate-line { display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--line); margin-top:clamp(26px,4vh,48px); }
+    .debate-q { padding:26px 26px 14px 0; min-height:148px; border-right:1px solid var(--line); }
+    .debate-q + .debate-q { padding-left:26px; }
+    .debate-q:last-child { border-right:0; }
+    .debate-q span { color:var(--accent); font-size:10px; letter-spacing:.16em; text-transform:uppercase; }
+    .debate-q p { margin-top:12px; color:var(--text); font-size:clamp(16px,1.28vw,20px); line-height:1.35; max-width:24ch; }
+    .closing-foot { margin-top:4px; color:#766f69; font-size:11px; letter-spacing:.05em; }
+
+
+    .speaker-notes { display:none; }
+    #notesOverlay { position:fixed; right:24px; bottom:48px; width:min(430px,42vw); max-height:44vh; overflow:auto; z-index:120; display:none; padding:18px 20px; border:1px solid rgba(244,239,232,.16); background:rgba(8,8,9,.94); box-shadow:0 18px 60px rgba(0,0,0,.45); backdrop-filter:blur(12px); }
+    body.notes-visible #notesOverlay { display:block; }
+    #notesPresenter { color:var(--accent); text-transform:uppercase; letter-spacing:.14em; font-size:10px; margin-bottom:9px; }
+    #notesText { color:#d6cec7; font-size:14px; line-height:1.48; }
+
+    @media (max-width: 1180px) {
+      :root { --safe-x: 40px; --safe-y: 36px; }
+      .s1-grid, .morning-layout, .stat-stage, .ai-explain, .usage-layout, .algo-layout, .contradiction-layout { gap:34px; }
+      .signal-map { height:min(54vh,430px); }
+      .reality { padding:28px; }
+      .conditions { gap:8px; }
+      .bar-row { grid-template-columns:155px 1fr 46px; }
+      .clockline { min-height:42vh; }
+      .work-moment { padding-left:12px; padding-right:12px; }
+      .work-moment > div { min-height:168px; }
+      .job-line { grid-template-columns:160px minmax(120px,1fr) 28px minmax(120px,1fr) 28px minmax(150px,1fr); gap:12px; }
+      .thinker { padding:28px; }
+    }
+    @media (max-height: 800px) {
+      :root { --safe-y: 30px; }
+      .slide { padding-top:48px; padding-bottom:48px; }
+      h1 { font-size:clamp(46px,6.5vw,92px); }
+      h2 { font-size:clamp(34px,4.7vw,66px); }
+      p { font-size:clamp(15px,1.25vw,20px); }
+      .time-hero { font-size:clamp(68px,9vw,126px); }
+      .day-event { min-height:62px; padding-top:10px; padding-bottom:10px; }
+      .mega { font-size:clamp(78px,11vw,150px); }
+      .reality-split { min-height:48vh; }
+      .prompt-window { min-height:360px; padding:20px; }
+      .flow { margin-top:30px; }
+      .clockline { min-height:40vh; }
+      .work-moment time { font-size:clamp(30px,3vw,44px); }
+      .work-moment::before { top:57px; }
+      .work-moment > div { min-height:152px; }
+      .clockline::before { top:62px; }
+      .job-line { padding:16px 0; }
+      .dashboard { min-height:410px; }
+      .metric { min-height:84px; padding:14px; }
+      .tension { min-height:86px; }
+      .thinker { min-height:45vh; }
+      .closing { min-height:66vh; }
+    }
+    @media (max-width: 900px) {
+      .s1-grid, .morning-layout, .stat-stage, .ai-explain, .usage-layout, .algo-layout, .contradiction-layout { grid-template-columns:1fr; }
+      .signal-map, .orbit-stat { display:none; }
+      .ineq-head, .workday-head, .task-change .headrow, .theory-head { display:block; }
+      .ineq-head p, .workday-head p, .headrow p, .theory-head p { text-align:left; margin-top:14px; }
+      .reality-split { grid-template-columns:1fr; }
+      .reality + .reality { border-left:0; border-top:1px solid var(--line); }
+      .clockline { grid-template-columns:repeat(2,1fr); }
+      .work-moment:nth-child(2n) { border-right:0; }
+      .work-moment:nth-child(n+3) { border-top:1px solid var(--line); }
+      .work-moment > div { min-height:132px; justify-content:center; }
+      .task-change h2 { font-size:clamp(30px,10.5vw,50px); line-height:.96; max-width:9ch; }
+      .job-line { grid-template-columns:1fr; gap:10px; align-items:start; padding:18px 0; }
+      .job-name { font-size:clamp(22px,9vw,38px); }
+      .job-stage { min-height:auto; padding-top:0; padding-left:0; }
+      .job-stage strong { margin-bottom:4px; }
+      .job-line .job-stage + .job-stage { border-top:1px solid rgba(255,255,255,.06); padding-top:10px; }
+      .arrow-col { display:none; }
+      .task-thesis { font-size:clamp(24px,8.5vw,42px); }
+      .thinkers { grid-template-columns:1fr; }
+      .thinker { min-height:auto; border-right:0; border-bottom:1px solid var(--line); gap:28px; }
+      .thinker:last-child { border-bottom:0; }
+      .debate-line { grid-template-columns:1fr; }
+      .debate-q { border-right:0; border-bottom:1px solid var(--line); padding-left:0!important; min-height:auto; padding-right:0; }
+      .debate-q p { max-width:none; }
+      #notesOverlay { width:calc(100vw - 40px); right:20px; }
+    }
+
+    #progressTrack { position: fixed; left: 0; right: 0; top: 0; height: 3px; background: rgba(255,255,255,.08); z-index: 100; }
+    #progress { display: block; width: 8.3333%; height: 100%; background: var(--accent); transition: width .42s cubic-bezier(.2,.8,.2,1); }
+    #sectionCounter { position: fixed; right: 22px; bottom: 18px; z-index: 100; font-size: 11px; color: #8f8680; letter-spacing: .14em; font-variant-numeric: tabular-nums; }
+    .mobile-nav { display:none; }
+    @media (max-width: 1000px) { :root { --safe-x: 34px; --safe-y: 34px; } }
+    @media (max-width: 900px) {
+      .mobile-nav { display:flex; gap:10px; position:fixed; left:50%; transform:translateX(-50%); bottom:calc(18px + env(safe-area-inset-bottom,0px)); z-index:115; }
+      .mobile-nav button { width:46px; height:46px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(14,14,15,.88); color:var(--text); font-size:21px; line-height:1; display:grid; place-items:center; backdrop-filter:blur(8px); box-shadow:0 10px 28px rgba(0,0,0,.24); }
+      .mobile-nav button:active { transform:scale(.97); }
+      #sectionCounter { right:14px; bottom:76px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+      .reveal, .reveal-up, .reveal-line { opacity: 1; transform: none; }
+      .slide:not(.active) { visibility: hidden; opacity: 0; }
+      .slide.active { visibility: visible; opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div id="progressTrack" aria-hidden="true"><span id="progress"></span></div>
+  <div id="stage">
+    <section class="slide active" data-slide="1" data-kicker="Sociologia · Grupo 6">
+      <div class="s1-grid">
+        <div class="s1-copy">
+          <div class="eyebrow reveal-up">trabalho remoto + inteligência artificial</div>
+          <h1 class="reveal-up" style="--delay:.08s" aria-label="O trabalho mudou de lugar. E de lógica.">O trabalho mudou de lugar.<br><em>E de lógica.</em></h1>
+          <p class="subtitle reveal-up" style="--delay:.16s">O que muda quando a casa vira escritório, a IA entra nas tarefas e o próprio trabalho passa a ser medido por sistemas?</p>
+          <div class="group-line reveal" style="--delay:.26s">Otavio · Vitor Hugo · Matheus · Bruno R. · Ana Clara</div>
+        </div>
+        <div class="signal-map reveal" style="--delay:.12s" aria-hidden="true">
+          <span class="node hot"></span><span class="node"></span><span class="node"></span><span class="node"></span>
+          <span class="signal-label">casa · empresa · dados · algoritmo</span>
+        </div>
+      </div>
+      <div class="speaker-notes" data-presenter="Otavio">Abre sem explicar tudo de cara. Diz que a pergunta do trabalho é simples: o que acontece com as relações de trabalho quando casa, plataforma e IA passam a ocupar o mesmo espaço? Depois apresenta rapidamente o grupo.</div>
+    </section>
+    <section class="slide" data-slide="2" data-kicker="01 · O indivíduo">
+      <div class="morning-layout">
+        <div class="morning-copy">
+          <div class="time-hero reveal-up">8h12</div>
+          <h2 class="reveal-up" style="--delay:.08s">O expediente começou.<br>Mas ninguém saiu de casa.</h2>
+          <p class="question reveal-up" style="--delay:.16s">Onde termina a vida pessoal e começa a empresa quando tudo acontece na mesma tela?</p>
+        </div>
+        <div>
+          <div class="day-sequence">
+            <div class="day-event reveal-up" style="--delay:.08s"><time>08:12</time><div><strong>primeira mensagem</strong><small>o trabalho chega antes do deslocamento</small></div></div>
+            <div class="day-event reveal-up" style="--delay:.16s"><time>08:27</time><div><strong>reunião</strong><small>colegas viram janelas na tela</small></div></div>
+            <div class="day-event reveal-up" style="--delay:.24s"><time>09:03</time><div><strong>IA resume</strong><small>decisões e pendências aparecem em segundos</small></div></div>
+            <div class="day-event reveal-up" style="--delay:.32s"><time>09:18</time><div><strong>vira tarefa</strong><small>plataforma, prazo, métrica, cobrança</small></div></div>
+          </div>
+          <div class="day-closing reveal" style="--delay:.4s">O escritório não desapareceu. <span class="accent">Ele entrou na rotina.</span></div>
+        </div>
+      </div>
+      <div class="speaker-notes" data-presenter="Otavio">Pensa numa manhã comum de home office: antes mesmo de sair de casa, o expediente já começou. O ponto sociológico aqui é a fronteira entre vida privada e trabalho, que fica muito menos nítida.</div>
+    </section>
+    <section class="slide" data-slide="3" data-kicker="02 · Escala">
+      <div class="stat-stage">
+        <div>
+          <div class="eyebrow reveal-up">Brasil · PNAD Contínua 2022</div>
+          <span class="mega reveal-up" data-count="7.4" data-decimals="1" data-suffix=" milhões" data-duration="1150">7,4 milhões</span>
+          <div class="stat-label reveal-up" style="--delay:.12s">de pessoas realizaram <strong>teletrabalho</strong> no período analisado pelo IBGE.</div>
+          <p class="stat-note reveal-up" style="--delay:.2s">Isso correspondia a 7,7% das pessoas ocupadas consideradas no levantamento.</p>
+        </div>
+        <div class="orbit-stat reveal" style="--delay:.12s" aria-label="7,7 por cento das pessoas ocupadas analisadas">
+          <div class="orbit-copy">7,7%<small>teletrabalho</small></div>
+        </div>
+      </div>
+      <div class="source">Fonte: IBGE · PNAD Contínua — Teletrabalho e trabalho por meio de plataformas digitais 2022. Publicação do IBGE, 2023.</div>
+      <div class="speaker-notes" data-presenter="Vitor Hugo">Aqui entra escala, não opinião. Em 2022, o IBGE encontrou 7,4 milhões de pessoas em teletrabalho no recorte analisado. O dado mostra que não estamos falando de uma situação isolada.</div>
+    </section>
+    <section class="slide" data-slide="4" data-kicker="03 · Desigualdade">
+      <div class="ineq-head">
+        <div><div class="eyebrow reveal-up">mesma modalidade, condições diferentes</div><h2 class="reveal-up" style="--delay:.08s">Quem pode trabalhar remoto?</h2></div>
+        <p class="reveal-up" style="--delay:.14s">A possibilidade de trabalhar de casa também depende de <span class="accent">condições sociais</span>: profissão, escolaridade, espaço, equipamento e conexão.</p>
+      </div>
+      <div class="reality-split reveal-up" style="--delay:.18s">
+        <article class="reality good">
+          <div>
+            <div class="reality-tag">quando a estrutura ajuda</div>
+            <h3>Autonomia pode virar vantagem.</h3>
+            <div class="conditions"><div class="condition">ambiente próprio</div><div class="condition">equipamento adequado</div><div class="condition">internet estável</div></div>
+          </div>
+          <div class="education-stat"><b>23,5%</b><span>das pessoas ocupadas com superior completo realizaram teletrabalho</span></div>
+        </article>
+        <article class="reality limited">
+          <div>
+            <div class="reality-tag">quando a estrutura limita</div>
+            <h3>Flexibilidade pode nem ser opção.</h3>
+            <div class="conditions"><div class="condition">espaço compartilhado</div><div class="condition">trabalho presencial</div><div class="condition">acesso digital menor</div></div>
+          </div>
+          <div class="education-stat"><b>0,6%</b><span>entre pessoas sem instrução ou com fundamental incompleto</span></div>
+        </article>
+      </div>
+      <div class="source">Fonte: IBGE · PNAD Contínua 2022. Percentuais por nível de instrução entre pessoas ocupadas que realizaram teletrabalho.</div>
+      <div class="speaker-notes" data-presenter="Vitor Hugo">Mas “trabalhar de qualquer lugar” não vale igualmente para todo mundo. Escolaridade, profissão, conexão, equipamento e espaço em casa mudam completamente a possibilidade de trabalhar remoto. O contraste de escolaridade deixa essa desigualdade bem visível.</div>
+    </section>
+    <section class="slide" data-slide="5" data-kicker="04 · IA sem ficção científica">
+      <div class="ai-explain">
+        <div>
+          <div class="eyebrow reveal-up">não é uma mente dentro do computador</div>
+          <h2 class="reveal-up" style="--delay:.08s">O que a IA realmente faz</h2>
+          <p class="lead reveal-up" style="--delay:.15s">Em ferramentas de linguagem, o sistema recebe contexto, identifica padrões aprendidos e constrói uma resposta provável. <span class="accent">O resultado ainda precisa de julgamento humano.</span></p>
+        </div>
+        <div class="prompt-window reveal-up" style="--delay:.12s">
+          <div class="window-dots"><i></i><i></i><i></i></div>
+          <div class="prompt-label">pedido de trabalho</div>
+          <div class="prompt-text">“Resuma esta reunião em 3 decisões e 4 tarefas, indicando responsáveis e prazos.”</div>
+          <div class="flow">
+            <div class="flow-step"><strong>1 · contexto</strong>texto, histórico, instrução</div>
+            <div class="flow-step"><strong>2 · padrões</strong>relações aprendidas no treinamento</div>
+            <div class="flow-step"><strong>3 · resposta</strong>sequência provável de linguagem</div>
+            <div class="flow-step"><strong>4 · revisão</strong>humano verifica e decide</div>
+          </div>
+          <div class="human-check">IA pode acelerar o caminho. Ela não transforma uma resposta plausível em verdade automaticamente.</div>
+        </div>
+      </div>
+      <div class="speaker-notes" data-presenter="Matheus">Evita dizer que a IA pensa como uma pessoa. Um modelo de linguagem trabalha com padrões aprendidos e produz uma resposta provável a partir do contexto. Por isso a revisão humana aparece como parte do processo, não como detalhe.</div>
+    </section>
+    <section class="slide" data-slide="6" data-kicker="05 · Uso real">
+      <div class="usage-layout">
+        <div class="usage-copy">
+          <div class="eyebrow reveal-up">trabalhadores nos EUA · 2026</div>
+          <h2 class="reveal-up" style="--delay:.08s">A IA entrou primeiro nas tarefas</h2>
+          <p class="thesis reveal-up" style="--delay:.15s">Ela aparece menos como “substituta de uma profissão inteira” e mais como ferramenta dentro do fluxo de trabalho.</p>
+        </div>
+        <div>
+          <div class="bar-chart" aria-label="Principais usos de IA no trabalho segundo o U.S. Census Bureau em 2026">
+            <div class="bar-row reveal-up"><div class="bar-label">pesquisa / ajuda técnica</div><div class="bar-track"><div class="bar-fill" style="--value:100%;--delay:.08s"></div></div><div class="bar-value">37%</div></div>
+            <div class="bar-row reveal-up" style="--delay:.06s"><div class="bar-label">escrita profissional</div><div class="bar-track"><div class="bar-fill" style="--value:86.5%;--delay:.16s"></div></div><div class="bar-value">32%</div></div>
+            <div class="bar-row reveal-up" style="--delay:.12s"><div class="bar-label">geração de ideias</div><div class="bar-track"><div class="bar-fill" style="--value:86.5%;--delay:.24s"></div></div><div class="bar-value">32%</div></div>
+            <div class="bar-row reveal-up" style="--delay:.18s"><div class="bar-label">interpretar / resumir</div><div class="bar-track"><div class="bar-fill" style="--value:83.8%;--delay:.32s"></div></div><div class="bar-value">31%</div></div>
+            <div class="bar-row reveal-up" style="--delay:.24s"><div class="bar-label">tarefas administrativas</div><div class="bar-track"><div class="bar-fill" style="--value:73%;--delay:.40s"></div></div><div class="bar-value">27%</div></div>
+          </div>
+          <div class="chart-note">Percentuais entre trabalhadores dos Estados Unidos que relataram uso de IA para cada tarefa — as categorias não são exclusivas entre si.</div>
+        </div>
+      </div>
+      <div class="source">Fonte: U.S. Census Bureau · Household Trends and Outlook Pulse Survey, março de 2026; artigo publicado em 11 ago. 2026.</div>
+      <div class="speaker-notes" data-presenter="Matheus">Esses percentuais são de trabalhadores dos Estados Unidos, então não representam o Brasil. Eles servem para mostrar onde a IA já aparece no cotidiano: pesquisa, escrita, ideias, resumo e tarefas administrativas.</div>
+    </section>
+    <section class="slide" data-slide="7" data-kicker="06 · Dentro do expediente">
+      <div class="workday">
+        <div class="workday-head">
+          <div><div class="eyebrow reveal-up">um dia remoto com IA</div><h2 class="reveal-up" style="--delay:.08s">A ferramenta entra no meio do trabalho.</h2></div>
+          <p class="reveal-up" style="--delay:.14s">Não é “humano ou IA”. Na prática, o fluxo mistura <span class="accent">decisão humana, automação e revisão.</span></p>
+        </div>
+        <div class="clockline reveal-up" style="--delay:.16s">
+          <div class="work-moment"><time>08h</time><div><div class="work-task">organizar agenda e prioridades</div><span class="role-pill">humano decide</span></div></div>
+          <div class="work-moment"><time>09h</time><div><div class="work-task">reunião + transcrição</div><span class="role-pill ai">IA ajuda</span></div></div>
+          <div class="work-moment"><time>11h</time><div><div class="work-task">rascunho de e-mail e documento</div><span class="role-pill ai">IA ajuda</span></div></div>
+          <div class="work-moment"><time>13h</time><div><div class="work-task">pesquisa e comparação</div><span class="role-pill">humano valida</span></div></div>
+          <div class="work-moment"><time>15h</time><div><div class="work-task">análise de dados e padrões</div><span class="role-pill ai">IA ajuda</span></div></div>
+          <div class="work-moment"><time>17h</time><div><div class="work-task">fechamento e prioridades do dia seguinte</div><span class="role-pill">humano revisa</span></div></div>
+        </div>
+      </div>
+      <div class="speaker-notes" data-presenter="Bruno R.">Aqui a ideia é mostrar a IA misturada no expediente, não como uma máquina separada do trabalhador. Em alguns momentos ela ajuda, em outros o humano valida, decide ou corrige. O fluxo real é híbrido.</div>
+    </section>
+    <section class="slide" data-slide="8" data-kicker="07 · O que muda primeiro">
+      <div class="task-change">
+        <div class="headrow">
+          <div><div class="eyebrow reveal-up">automação por partes</div><h2 class="reveal-up" style="--delay:.08s">A profissão não some inteira</h2></div>
+          <p class="reveal-up" style="--delay:.14s">Uma profissão é um conjunto de tarefas. Algumas ficam mais rápidas; outras continuam dependendo de contexto, responsabilidade e relação humana.</p>
+        </div>
+        <div class="job-lines reveal-up" style="--delay:.18s">
+          <div class="job-line"><div class="job-name">Jornalista</div><div class="job-stage"><strong>antes</strong>pesquisa e rascunho manual</div><div class="arrow-col">→</div><div class="job-stage"><strong>com IA</strong>apoio em resumo e estrutura</div><div class="arrow-col">→</div><div class="job-stage"><strong>continua humano</strong>apuração, fonte e responsabilidade editorial</div></div>
+          <div class="job-line"><div class="job-name">Programador</div><div class="job-stage"><strong>antes</strong>escreve e procura soluções</div><div class="arrow-col">→</div><div class="job-stage"><strong>com IA</strong>sugestões de código e documentação</div><div class="arrow-col">→</div><div class="job-stage"><strong>continua humano</strong>arquitetura, testes e decisão técnica</div></div>
+          <div class="job-line"><div class="job-name">Analista</div><div class="job-stage"><strong>antes</strong>organiza dados e relatórios</div><div class="arrow-col">→</div><div class="job-stage"><strong>com IA</strong>síntese e detecção de padrões</div><div class="arrow-col">→</div><div class="job-stage"><strong>continua humano</strong>interpretação, contexto e decisão</div></div>
+        </div>
+        <div class="task-thesis reveal-up" style="--delay:.24s">A unidade que muda primeiro é <span class="accent">a tarefa</span> — não a profissão inteira.</div>
+      </div>
+      <div class="speaker-notes" data-presenter="Bruno R.">Uma profissão é composta por várias tarefas. A IA pode acelerar algumas partes sem assumir tudo aquilo que envolve responsabilidade, contexto, relação com pessoas e decisão. Por isso faz mais sentido perguntar quais tarefas mudam primeiro.</div>
+    </section>
+    <section class="slide" data-slide="9" data-kicker="08 · Gestão algorítmica">
+      <div class="algo-layout">
+        <div class="algo-copy">
+          <div class="eyebrow reveal-up">quando gestão vira dado</div>
+          <h2 class="reveal-up" style="--delay:.08s">O chefe pode virar software</h2>
+          <p class="reveal-up" style="--delay:.14s">Sistemas podem usar dados para organizar, distribuir, monitorar e avaliar o trabalho. Isso pode aumentar eficiência — e também ampliar vigilância.</p>
+          <div class="algo-question reveal-up" style="--delay:.2s">Se um sistema mede seu trabalho, <span class="accent">quem decide o que significa trabalhar bem?</span></div>
+        </div>
+        <div class="dashboard reveal-up" style="--delay:.12s" aria-label="Simulação de painel de gerenciamento algorítmico">
+          <div class="metric"><span>tempo online</span><strong>07h 46</strong></div>
+          <div class="metric"><span>tarefas concluídas</span><strong>18 / 21</strong></div>
+          <div class="metric"><span>tempo médio de resposta</span><strong>6m 12s</strong></div>
+          <div class="metric"><span>meta do dia</span><strong>86%</strong></div>
+          <div class="score-panel"><div><small>pontuação automática</small><b>84 / 100</b></div><div><div class="score-track"><div class="score-fill"></div></div><small style="margin-top:10px">dados → regra → avaliação</small></div></div>
+        </div>
+      </div>
+      <div class="source">Fonte conceitual: OIT · “Algorithmic management in the workplace” e “AI systems @ work”, 2026. O painel acima é uma simulação visual, não dados de uma empresa real.</div>
+      <div class="speaker-notes" data-presenter="Ana Clara">Esse painel é uma simulação, mas a lógica de gerenciamento algorítmico é real: dados podem ser usados para organizar, monitorar e avaliar trabalho. A pergunta importante não é só se mede, mas quem escolhe a métrica e quais consequências ela tem.</div>
+    </section>
+    <section class="slide" data-slide="10" data-kicker="09 · Contradições">
+      <div class="contradiction-layout">
+        <div>
+          <div class="eyebrow reveal-up">o remoto não é só vantagem ou problema</div>
+          <h2 class="reveal-up" style="--delay:.08s">Mais liberdade ou trabalho o tempo inteiro?</h2>
+          <p class="intro reveal-up" style="--delay:.14s">A Sociologia ajuda justamente a olhar para as duas coisas ao mesmo tempo: ganhos individuais e novas formas de pressão.</p>
+        </div>
+        <div class="tensions">
+          <div class="tension reveal-up"><div class="tension-side">sem deslocamento<small>tempo e custo economizados</small></div><div class="tension-vs">↔</div><div class="tension-side right">mensagens fora do horário<small>a fronteira do expediente fica menos clara</small></div></div>
+          <div class="tension reveal-up" style="--delay:.07s"><div class="tension-side">mais autonomia<small>organizar o próprio ritmo</small></div><div class="tension-vs">↔</div><div class="tension-side right">mais monitoramento<small>métricas e rastros digitais</small></div></div>
+          <div class="tension reveal-up" style="--delay:.14s"><div class="tension-side">casa como conforto<small>espaço conhecido e flexível</small></div><div class="tension-vs">↔</div><div class="tension-side right">casa como escritório<small>o trabalho ocupa o espaço privado</small></div></div>
+          <div class="tension reveal-up" style="--delay:.21s"><div class="tension-side">equipes globais<small>menos barreira geográfica</small></div><div class="tension-vs">↔</div><div class="tension-side right">menos convivência presencial<small>vínculos precisam ser reconstruídos</small></div></div>
+        </div>
+      </div>
+      <div class="source">Referência: OIT, estudos sobre teletrabalho e riscos psicossociais associados a sistemas digitais e IA no trabalho.</div>
+      <div class="speaker-notes" data-presenter="Ana Clara">O trabalho remoto não é simplesmente bom ou ruim. A mesma mudança pode trazer autonomia e, ao mesmo tempo, ampliar disponibilidade e monitoramento. É essa contradição que torna o tema interessante para Sociologia.</div>
+    </section>
+    <section class="slide" data-slide="11" data-kicker="10 · Três lentes sociológicas">
+      <div class="theory-wrap">
+        <div class="theory-head">
+          <div><div class="eyebrow reveal-up">não precisamos trazer os autores para o passado</div><h2 class="reveal-up" style="--delay:.08s">Marx, Weber e Durkheim no presente</h2></div>
+          <p class="reveal-up" style="--delay:.14s">Em vez de decorar biografias, dá para usar cada autor como uma pergunta sobre o trabalho de hoje.</p>
+        </div>
+        <div class="thinkers reveal-up" style="--delay:.18s">
+          <article class="thinker"><div><div class="thinker-num">01</div><h3>Marx</h3><div class="thinker-question">Se a IA aumenta a produtividade, <span class="accent">quem fica com esse ganho?</span></div></div><div class="thinker-key">tecnologia · produção · distribuição</div></article>
+          <article class="thinker"><div><div class="thinker-num">02</div><h3>Weber</h3><div class="thinker-question">Quando tudo vira métrica, <span class="accent">o trabalhador também vira número?</span></div></div><div class="thinker-key">racionalização · regra · controle</div></article>
+          <article class="thinker"><div><div class="thinker-num">03</div><h3>Durkheim</h3><div class="thinker-question">Como manter vínculos quando a equipe vira <span class="accent">uma rede de telas?</span></div></div><div class="thinker-key">divisão do trabalho · vínculo · interdependência</div></article>
+        </div>
+      </div>
+      <div class="speaker-notes" data-presenter="Otavio">Aqui a gente usa os autores como lentes, não como três mini-biografias. Marx ajuda a perguntar quem recebe o ganho de produtividade; Weber, o que acontece quando tudo vira regra e indicador; Durkheim, como ficam os vínculos numa equipe dispersa.</div>
+    </section>
+    <section class="slide" data-slide="12" data-kicker="11 · Fechamento">
+      <div class="closing">
+        <div class="closing-main">
+          <div class="eyebrow reveal-up">o debate não termina na tecnologia</div>
+          <h2 class="reveal-up" style="--delay:.08s">A questão não é se teremos IA no trabalho.<br>É <em>que tipo de trabalho queremos construir com ela.</em></h2>
+          <div class="debate-line reveal-up" style="--delay:.16s">
+            <div class="debate-q"><span>01 · autonomia</span><p>Quem controla o ritmo, o horário e as decisões?</p></div>
+            <div class="debate-q"><span>02 · ganhos</span><p>Quem recebe os benefícios do aumento de produtividade?</p></div>
+            <div class="debate-q"><span>03 · direitos</span><p>Como equilibrar inovação, privacidade e desigualdade?</p></div>
+          </div>
+        </div>
+        <div class="closing-foot reveal" style="--delay:.25s">GRUPO 6 · Otavio · Vitor Hugo · Matheus · Bruno R. · Ana Clara</div>
+      </div>
+      <div class="source">Fontes principais: IBGE — PNAD Contínua 2022; U.S. Census Bureau — HTOPS 2026; Organização Internacional do Trabalho — estudos sobre IA, trabalho e gestão algorítmica.</div>
+      <div class="speaker-notes" data-presenter="Ana Clara">Fecha devolvendo a questão para a turma. A tecnologia já está entrando no trabalho; a discussão social é como ela será organizada, quem terá autonomia, quem ficará com os ganhos e quais limites existirão para dados e vigilância. Se der tempo, escolham uma das três perguntas para abrir o debate.</div>
+    </section>
+  </div>
+  <div id="sectionCounter" aria-live="polite">01/12</div>
+  <div class="mobile-nav" aria-label="Navegação no celular">
+    <button id="mobilePrev" type="button" aria-label="Tela anterior">‹</button>
+    <button id="mobileNext" type="button" aria-label="Próxima tela">›</button>
+  </div>
+  <aside id="notesOverlay" aria-live="polite" aria-hidden="true"><div id="notesPresenter"></div><div id="notesText"></div></aside>
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const progress = document.getElementById('progress');
+    const sectionCounter = document.getElementById('sectionCounter');
+    const notesOverlay = document.getElementById('notesOverlay');
+    const notesPresenter = document.getElementById('notesPresenter');
+    const notesText = document.getElementById('notesText');
+    const mobilePrev = document.getElementById('mobilePrev');
+    const mobileNext = document.getElementById('mobileNext');
+    let currentSlide = 0;
+    let navLocked = false;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+
+    function setActiveSlide(index, direction = 0) {
+      const targetIndex = Math.max(0, Math.min(slides.length - 1, index));
+      if (targetIndex === currentSlide && slides[currentSlide].classList.contains('active')) return;
+      const previous = slides[currentSlide];
+      const next = slides[targetIndex];
+      slides.forEach((slide) => slide.classList.remove('exit-up','exit-down'));
+      if (previous && previous !== next) {
+        previous.classList.remove('active');
+        previous.classList.add(direction >= 0 ? 'exit-up' : 'exit-down');
+      }
+      currentSlide = targetIndex;
+      next.classList.remove('exit-up','exit-down');
+      next.classList.add('active');
+      progress.style.width = `${((currentSlide + 1) / slides.length) * 100}%`;
+      sectionCounter.textContent = `${String(currentSlide + 1).padStart(2, '0')}/${String(slides.length).padStart(2, '0')}`;
+      animateActiveSlide(next);
+      updateNotesOverlay();
+      window.setTimeout(() => {
+        slides.forEach((slide, i) => { if (i !== currentSlide) slide.classList.remove('exit-up','exit-down'); });
+      }, 600);
+    }
+
+    function goToSlide(index) {
+      const targetIndex = Math.max(0, Math.min(slides.length - 1, index));
+      if (targetIndex === currentSlide) return;
+      setActiveSlide(targetIndex, targetIndex > currentSlide ? 1 : -1);
+    }
+
+    function animateNumber(el, end, duration = 900) {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const decimals = Number(el.dataset.decimals || 0);
+      const suffix = el.dataset.suffix || '';
+      const prefix = el.dataset.prefix || '';
+      if (reduced || !duration) { el.textContent = `${prefix}${Number(end).toFixed(decimals).replace('.', ',')}${suffix}`; return; }
+      const start = performance.now();
+      const tick = (now) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const value = end * eased;
+        el.textContent = `${prefix}${value.toFixed(decimals).replace('.', ',')}${suffix}`;
+        if (t < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+
+    function animateActiveSlide(slide) {
+      if (!slide) return;
+      slide.classList.remove('is-active');
+      void slide.offsetWidth;
+      slide.classList.add('is-active');
+      slide.querySelectorAll('[data-count]').forEach((el) => {
+        el.textContent = el.dataset.prefix || '';
+        animateNumber(el, Number(el.dataset.count), Number(el.dataset.duration || 900));
+      });
+    }
+
+    function updateNotesOverlay() {
+      const note = slides[currentSlide].querySelector('.speaker-notes');
+      if (!note) return;
+      notesPresenter.textContent = `fala · ${note.dataset.presenter || 'grupo'}`;
+      notesText.textContent = note.textContent.trim();
+    }
+
+    function toggleNotes() {
+      const visible = document.body.classList.toggle('notes-visible');
+      notesOverlay.setAttribute('aria-hidden', visible ? 'false' : 'true');
+      updateNotesOverlay();
+    }
+
+    function nextSlide() { goToSlide(currentSlide + 1); }
+    function prevSlide() { goToSlide(currentSlide - 1); }
+
+    async function toggleFullscreen() {
+      const doc = document;
+      const root = document.documentElement;
+      if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+        const request = root.requestFullscreen || root.webkitRequestFullscreen;
+        if (request) await request.call(root);
+      } else {
+        const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+        if (exit) await exit.call(doc);
+      }
+    }
+
+    document.addEventListener('keydown', (event) => {
+      const interactive = event.target instanceof Element ? event.target.closest('input, textarea, select, button, a, [contenteditable="true"]') : null;
+      if (interactive && (event.code === 'Space' || event.key === ' ')) return;
+      if (event.key === 'ArrowRight' || event.code === 'Space') { event.preventDefault(); nextSlide(); }
+      else if (event.key === 'ArrowLeft') { event.preventDefault(); prevSlide(); }
+      else if (event.key === 'Home') { event.preventDefault(); goToSlide(0); }
+      else if (event.key === 'End') { event.preventDefault(); goToSlide(slides.length - 1); }
+      else if (event.key === 'f' || event.key === 'F') { event.preventDefault(); toggleFullscreen(); }
+      else if (event.key === 'n' || event.key === 'N') { event.preventDefault(); toggleNotes(); }
+    });
+
+    window.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      if (navLocked || Math.abs(event.deltaY) < 18) return;
+      navLocked = true;
+      if (event.deltaY > 0) nextSlide(); else prevSlide();
+      window.setTimeout(() => { navLocked = false; }, 620);
+    }, { passive: false });
+
+    document.addEventListener('touchstart', (event) => {
+      const touch = event.changedTouches && event.changedTouches[0];
+      if (!touch) return;
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      touchStartTime = Date.now();
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (event) => {
+      if (event.cancelable) event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchend', (event) => {
+      const touch = event.changedTouches && event.changedTouches[0];
+      if (!touch || navLocked) return;
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      const dt = Date.now() - touchStartTime;
+      const vertical = Math.abs(dy) > Math.abs(dx) * 1.15;
+      const enoughDistance = Math.abs(dy) >= 42;
+      const quickFlick = dt < 420 && Math.abs(dy) >= 28;
+      if (!vertical || (!enoughDistance && !quickFlick)) return;
+      navLocked = true;
+      if (dy < 0) nextSlide(); else prevSlide();
+      window.setTimeout(() => { navLocked = false; }, 620);
+    }, { passive: true });
+
+    if (mobilePrev) mobilePrev.addEventListener('click', prevSlide);
+    if (mobileNext) mobileNext.addEventListener('click', nextSlide);
+
+    slides.forEach((slide, i) => slide.classList.toggle('active', i === 0));
+    progress.style.width = `${(1 / slides.length) * 100}%`;
+    sectionCounter.textContent = `01/${String(slides.length).padStart(2, '0')}`;
+    animateActiveSlide(slides[0]);
+    updateNotesOverlay();
+  </script>
+</body>
+</html>
